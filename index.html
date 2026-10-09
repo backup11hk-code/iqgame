@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JFFT 智力王大賽 - 接新娘驗證</title>
+    <style>
+        * { box-sizing: border-box; font-family: 'PingFang HK', 'Microsoft JhengHei', sans-serif; }
+        body { background-color: #181825; color: #ffffff; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; padding: 20px; }
+        .container { background-color: #242535; width: 100%; max-width: 800px; border-radius: 16px; padding: 30px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); border: 1px solid #383a54; }
+        .header { text-align: center; margin-bottom: 20px; }
+        .title { color: #ffd166; font-size: 26px; font-weight: bold; margin-bottom: 8px; }
+        .subtitle { color: #a0a0b0; font-size: 14px; }
+        .stats { display: flex; justify-content: space-between; background-color: #1e1e2e; padding: 12px 20px; border-radius: 8px; font-size: 18px; margin-bottom: 25px; font-weight: bold; }
+        .score-val { color: #06d6a0; }
+        .question-box { font-size: 20px; font-weight: bold; line-height: 1.5; margin-bottom: 25px; min-height: 70px; }
+        .options-grid { display: flex; flex-direction: column; gap: 12px; }
+        .opt-btn { background-color: #313244; color: #ffffff; border: 2px solid transparent; padding: 16px 20px; border-radius: 10px; font-size: 18px; text-align: left; cursor: pointer; transition: all 0.2s; font-weight: 600; }
+        .opt-btn:hover:not(:disabled) { background-color: #45475a; border-color: #89b4fa; }
+        .opt-btn.correct { background-color: #06d6a0 !important; color: #000000 !important; font-weight: bold; }
+        .opt-btn.wrong { background-color: #ef476f !important; color: #ffffff !important; }
+        .opt-btn:disabled { cursor: default; opacity: 0.9; }
+        .explanation { margin-top: 20px; padding: 15px; border-radius: 8px; font-size: 16px; display: none; line-height: 1.4; }
+        .explanation.correct { background-color: rgba(6, 214, 160, 0.15); color: #06d6a0; border: 1px solid #06d6a0; }
+        .explanation.wrong { background-color: rgba(239, 71, 111, 0.15); color: #ef476f; border: 1px solid #ef476f; }
+        .next-btn { display: block; width: 100%; margin-top: 25px; padding: 16px; background-color: #118ab2; color: #fff; border: none; border-radius: 10px; font-size: 18px; font-weight: bold; cursor: pointer; }
+        .next-btn:disabled { background-color: #45475a; cursor: not-allowed; }
+        .result-screen { text-align: center; display: none; }
+        .result-title { font-size: 28px; color: #ffd166; margin-bottom: 20px; }
+        .result-score { font-size: 22px; margin-bottom: 25px; line-height: 1.6; }
+        .status-box { padding: 25px; border-radius: 12px; font-size: 20px; font-weight: bold; line-height: 1.6; }
+        .status-pass { background-color: rgba(6, 214, 160, 0.2); color: #06d6a0; border: 2px solid #06d6a0; }
+        .status-fail { background-color: rgba(239, 71, 111, 0.2); color: #ef476f; border: 2px solid #ef476f; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div id="quiz-screen">
+        <div class="header">
+            <div class="title">🏆 JFFT 智力王大賽 - 接新娘驗證 🏆</div>
+            <div class="subtitle">世界智力組織權威認證 | 門檻：88 分</div>
+        </div>
+
+        <div class="stats">
+            <div>進度：<span id="current-q">1</span> / 30</div>
+            <div>當前得分：<span id="current-score" class="score-val">0</span> 分</div>
+        </div>
+
+        <div class="question-box" id="question-text">題目載入中...</div>
+
+        <div class="options-grid" id="options-container"></div>
+
+        <div id="explanation-box" class="explanation"></div>
+
+        <button id="next-btn" class="next-btn" onclick="nextQuestion()" disabled>下一題 ➔</button>
+    </div>
+
+    <div id="result-screen" class="result-screen">
+        <div class="result-title">🎉 結算時刻 🎉</div>
+        <div class="result-score" id="final-stats"></div>
+        <div id="status-card" class="status-box"></div>
+    </div>
+</div>
+
+<script>
+const questions = [
+    { q: "1. 一年入面有 31 日嘅月份有 7 個，有 30 日嘅月份有 4 個。咁一年入面有幾多個月份係有 28 日？", options: ["A. 1 個", "B. 2 個", "C. 12 個", "D. 每 4 年先有 1 個"], ans: 2, exp: "所有 12 個月份都有至少 28 日！" },
+    { q: "2. 香港現時流通嘅一毫子（10毫）硬幣，佢嘅邊緣形狀係咩樣？", options: ["A. 完全平滑嘅圓形", "B. 十二角形", "C. 波浪花邊形", "D. 齒輪紋形"], ans: 2, exp: "一毫同五毫硬幣嘅邊緣都係波浪花邊形。" },
+    { q: "3. 你參加緊一場跑步比賽，喺最後衝刺階段你成功超越咗第二名，咁你現時係第幾名？", options: ["A. 第一名", "B. 第二名", "C. 第三名", "D. 冠軍"], ans: 1, exp: "你超越咗第二名，就取替咗佢原本嘅位置成為第二名。" },
+    { q: "4. 喺香港茶餐廳叫熱咖啡或者熱奶茶，如果同夥計講要「飛沙走奶」，代表咩意思？", options: ["A. 去冰去糖", "B. 只要黑咖啡／純紅茶（去糖去奶）", "C. 加多奶加多糖", "D. 打包外賣"], ans: 1, exp: "「沙」指砂糖，「奶」指淡奶／煉奶，「飛沙走奶」即係兩樣都唔要。" },
+    { q: "5. 香港口語入面，講到錢嘅時候，一「撇」代表幾多錢？", options: ["A. 10 蚊", "B. 100 蚊", "C. 1,000 蚊", "D. 10,000 蚊"], ans: 2, exp: "一「撇」係一千蚊；一「餅/皮」係一萬蚊；一「球」係一百萬蚊。" },
+    { q: "6. 一間房點咗 10 支蠟燭，陣風吹熄咗 2 支，過咗一陣又吹熄多 1 支。如果之後冇風再吹，最後會剩下幾多支蠟燭？", options: ["A. 0 支", "B. 3 支", "C. 7 支", "D. 10 支"], ans: 1, exp: "吹熄咗嘅 3 支冇燒完留落嚟，其餘 7 支會一直燒光。" },
+    { q: "7. 港鐵（MTR）觀塘綫現時嘅東面終點站係調景嶺站，咁西面嘅終點站係邊個站？", options: ["A. 觀塘站", "B. 油麻地站", "C. 何文田站", "D. 黃埔站"], ans: 3, exp: "觀塘綫西面終點站係黃埔站。" },
+    { q: "8. 邊種動物最鍾意出門口？", options: ["A. 狗", "B. 貓", "C. 企鵝", "D. 蝙蝠"], ans: 2, exp: "因為企鵝「企喺街」/ 企喺門口！" },
+    { q: "9. 如果 1 隻雞 3 日生 1 隻蛋，咁 9 隻雞喺 9 日入面總共會生幾多隻蛋？", options: ["A. 9 隻", "B. 27 隻", "C. 81 隻", "D. 3 隻"], ans: 1, exp: "1 隻雞 9 日生 3 隻蛋，所以 9 隻雞 9 日會生 9 × 3 = 27 隻蛋。" },
+    { q: "10. 著名 YouTube 團隊 JFFT 嘅四位核心成員包括床哥、雞翼、良少，仲有邊一位？", options: ["A. 達哥", "B. 米爺", "C. 修哥", "D. 鹿兒"], ans: 1, exp: "JFFT 四位主要成員為床哥、雞翼、良少同米爺。" },
+    { q: "11. 醫生俾咗 3 粒藥丸你，叫你每隔半個鐘食一粒。咁你食晒 3 粒藥丸總共要幾多時間？", options: ["A. 30 分鐘", "B. 1 小時", "C. 1 小時 30 分鐘", "D. 2 小時"], ans: 1, exp: "第 0 分鐘食第 1 粒，第 30 分鐘食第 2 粒，第 60 分鐘食第 3 粒，合共 1 小時。" },
+    { q: "12. 香港現時流通嘅 100 蚊紙幣，喺俗語入面通常會叫佢做咩？", options: ["A. 大牛", "B. 青蟹", "C. 紅衫魚", "D. 黃腳鱲"], ans: 2, exp: "500 蚊叫「大牛」，100 蚊叫「紅衫魚」，舊款 10 蚊紙幣叫「青蟹」。" },
+    { q: "13. 咩鳥類最注重禮貌，去到邊都會叫人「借過」？", options: ["A. 麻雀", "B. 鷓鴣", "C. 鴿子", "D. 烏鴉"], ans: 1, exp: "鷓鴣（廣東話諧音「借過」）。" },
+    { q: "14. 喺香港茶餐廳入面，夥計講嘅「和尚跳海」係指邊一款嘢食/嘢飲？", options: ["A. 西多士", "B. 滾水蛋", "C. 凍阿華田", "D. 豆腐花"], ans: 1, exp: "將生雞蛋打落滾水入面，個樣好似和尚跳落水咁。" },
+    { q: "15. 房入面有 10 個人，如果每兩個人都要互相握手一次，總共要握手幾多次？", options: ["A. 10 次", "B. 45 次", "C. 90 次", "D. 100 次"], ans: 1, exp: "計算方法為 (10 × 9) / 2 = 45 次。" },
+    { q: "16. 香港面積最大嘅離島係邊個？", options: ["A. 香港島", "B. 大嶼山", "C. 南丫島", "D. 長洲"], ans: 1, exp: "大嶼山係香港面積最大嘅島嶼。" },
+    { q: "17. 一個桌子上有 6 個蘋果，你拿走了 4 個，咁你手上有幾多個蘋果？", options: ["A. 2 個", "B. 4 個", "C. 6 個", "D. 0 個"], ans: 1, exp: "因為係問你拿走了 4 個之後「手上有幾多個」，答案就係你拿走嘅 4 個。" },
+    { q: "18. 現時香港發行流通嘅 1 蚊硬幣，背面印有咩圖案？", options: ["A. 獅子山", "B. 洋紫荊", "C. 帆船", "D. 英國女王頭像"], ans: 1, exp: "現行版本背面圖案係洋紫荊花。" },
+    { q: "19. YouTube 頻道 JFFT 嘅英文全寫係咩？", options: ["A. Just For Fun Team", "B. Just For Fan Team", "C. Friends For Forever Team", "D. Jockey For Fun Team"], ans: 0, exp: "Just For Fun Team。" },
+    { q: "20. 一個盲人喺漆黑一片嘅房間入面，點解佢會睇唔到嘢？", options: ["A. 因為冇開燈", "B. 因為佢係盲嘅", "C. 因為戴咗墨鏡", "D. 因為房間停電"], ans: 1, exp: "因為佢本身係盲人，開唔開燈都係睇唔到。" },
+    { q: "21. 廣東話俗語講嘅「扯火」，係咩意思？", options: ["A. 點火起爐", "B. 發脾氣／發怒", "C. 轉移視線", "D. 快速逃跑"], ans: 1, exp: "形容一個人好火滾、發大脾氣。" },
+    { q: "22. 請找出數列嘅規律：2, 4, 8, 16, ( ? )，括號入面應該填咩數字？", options: ["A. 20", "B. 24", "C. 32", "D. 64"], ans: 2, exp: "每個數字都係前一個數字乘以 2。" },
+    { q: "23. 連接香港、珠海同澳門，現時全港最長嘅跨海大橋係邊一條？", options: ["A. 青馬大橋", "B. 昂船洲大橋", "C. 港珠澳大橋", "D. 汀九橋"], ans: 2, exp: "港珠澳大橋。" },
+    { q: "24. 世界上咩嘢「路」係完全冇車喺上面行嘅？", options: ["A. 馬路", "B. 鐵路", "C. 電路", "D. 高架路"], ans: 2, exp: "電路。" },
+    { q: "25. 香港街頭小食「碗仔翅」，傳統上主要嘅代替成分係咩？", options: ["A. 真正魚翅", "B. 粉絲同肉絲", "C. 燕窩", "D. 炸魚皮"], ans: 1, exp: "碗仔翅係用粉絲、肉絲模仿魚翅口感，冇真正魚翅。" },
+    { q: "26. 一公斤棉花同埋一公斤鐵，邊一個比較重？", options: ["A. 棉花", "B. 鐵", "C. 一樣重", "D. 視乎氣溫"], ans: 2, exp: "兩者重量都係一公斤，所以一樣重。" },
+    { q: "27. 喺香港口語入面，講到「洗大餅」係指做咩？", options: ["A. 喺酒樓洗碗", "B. 做餅乾", "C. 洗黑錢", "D. 擦鞋"], ans: 2, exp: "「洗大餅」係非法洗黑錢嘅俗稱。" },
+    { q: "28. 隻蝸牛要爬上 10 米高嘅牆，佢白天爬上 3 米，夜晚訓覺滑落 2 米。咁佢需要幾多日先可以爬到牆頂？", options: ["A. 7 日", "B. 8 日", "C. 9 日", "D. 10 日"], ans: 1, exp: "第 8 日白天爬多 3 米就已經到達 10 米頂部，唔會再滑落。" },
+    { q: "29. 乘搭港鐵時，車廂內聽到「嘟嘟嘟嘟嘟」連續警示聲響起，代表咩意思？", options: ["A. 列車超速", "B. 車門即將關閉", "C. 有人入侵路軌", "D. 下一站係轉車站"], ans: 1, exp: "車門及月台幕門即將關閉。" },
+    { q: "30. 世界上咩嘢「池」係完全冇水嘅？", options: ["A. 游泳池", "B. 水龍頭", "C. 電池", "D. 噴水池"], ans: 2, exp: "電池。" }
+];
+
+let currentIndex = 0;
+let score = 0;
+
+function loadQuestion() {
+    const q = questions[currentIndex];
+    document.getElementById("current-q").innerText = currentIndex + 1;
+    document.getElementById("question-text").innerText = q.q;
+    
+    const container = document.getElementById("options-container");
+    container.innerHTML = "";
+    
+    document.getElementById("explanation-box").style.display = "none";
+    document.getElementById("next-btn").disabled = true;
+
+    q.options.forEach((opt, idx) => {
+        const btn = document.createElement("button");
+        btn.className = "opt-btn";
+        btn.innerText = opt;
+        btn.onclick = () => selectAnswer(idx);
+        container.appendChild(btn);
+    });
+}
+
+function selectAnswer(selectedIdx) {
+    const q = questions[currentIndex];
+    const btns = document.querySelectorAll(".opt-btn");
+    
+    btns.forEach(btn => btn.disabled = true);
+    
+    const expBox = document.getElementById("explanation-box");
+    expBox.style.display = "block";
+
+    if (selectedIdx === q.ans) {
+        score++;
+        btns[selectedIdx].classList.add("correct");
+        expBox.className = "explanation correct";
+        expBox.innerHTML = `🟢 <b>答對！</b> ${q.exp}`;
+    } else {
+        btns[selectedIdx].classList.add("wrong");
+        btns[q.ans].classList.add("correct");
+        expBox.className = "explanation wrong";
+        expBox.innerHTML = `🔴 <b>答錯！</b> 正確答案係 (${["A","B","C","D"][q.ans]})<br>💡 解析：${q.exp}`;
+    }
+
+    const currentScore = Math.round((score / (currentIndex + 1)) * 100);
+    document.getElementById("current-score").innerText = currentScore;
+    document.getElementById("next-btn").disabled = false;
+}
+
+function nextQuestion() {
+    currentIndex++;
+    if (currentIndex < questions.length) {
+        loadQuestion();
+    } else {
+        showResults();
+    }
+}
+
+function showResults() {
+    document.getElementById("quiz-screen").style.display = "none";
+    document.getElementById("result-screen").style.display = "block";
+
+    const finalScore = Math.round((score / questions.length) * 100);
+    document.getElementById("final-stats").innerHTML = `答對題數：<b>${score} / ${questions.length}</b><br>最終智商得分：<b style="color: #ffd166; font-size: 32px;">${finalScore} 分</b>`;
+
+    const statusCard = document.getElementById("status-card");
+    if (finalScore >= 88) {
+        statusCard.className = "status-box status-pass";
+        statusCard.innerHTML = "✅ 恭喜過關！<br>新郎智商達到 88 分以上，符合世界智力組織標準！<br><br>💍 姊妹團宣佈：允許進場接新娘！";
+    } else {
+        statusCard.className = "status-box status-fail";
+        statusCard.innerHTML = `❌ 警告！最終得分只有 ${finalScore} 分，未達 88 分門檻！<br><br>💰 請新郎同兄弟團立刻遞上「智力補償利是」<br>或者接受即場掌上壓懲罰！`;
+    }
+}
+
+loadQuestion();
+</script>
+</body>
+</html>
